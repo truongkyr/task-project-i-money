@@ -1,0 +1,5 @@
+body {
+    @apply bg-dark-light;
+    font-family: "Nunito", sans-serif;
+    font-size: 16px;
+}
