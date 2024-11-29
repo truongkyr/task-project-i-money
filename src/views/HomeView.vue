@@ -40,6 +40,58 @@
               </div>
             </label>
           </div>
+          <div class="row">
+            <label for="expense_desire" class="py-2">
+              <div class="leading-10 pb-1 flex items-center">
+                <span class="text-white text-base font-bold px-1 width-response"
+                  >Mức chi tiêu quy định:</span
+                >
+                <div v-if="isEditingExpense" class="flex">
+                  <input
+                    class="mx-4 rounded-xl text-red px-2 input-money"
+                    type="text"
+                    id="expense_desire"
+                    v-model="expense_desire"
+                    placeholder="Nhập số tiền ..."
+                  />
+                  <button
+                    class="font-semibold text-red bg-white px-3 rounded-xl mx-1"
+                    type="button"
+                    @click="submitExpenseDeriseCompare"
+                  >
+                    Thêm
+                  </button>
+                </div>
+                <div v-else class="flex items-center w-full">
+                  <span class="mx-4 rounded-xl text-red font-bold">
+                    {{ formatCurrency(onSubmitExpense) }}
+                  </span>
+                  <button
+                    class="font-semibold text-white bg-red px-2 rounded-xl mx-1 edit-front"
+                    type="button"
+                    @click="editExpense"
+                  >
+                    Chỉnh sửa
+                  </button>
+                  <button
+                    class="font-semibold text-white bg-gray-500 px-2 rounded-xl mx-1"
+                    type="button"
+                    @click="deleteExpense"
+                  >
+                    Xóa
+                  </button>
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="row flex justify-center">
+        <div
+          v-if="warning"
+          class="text-dark font-bold p-4 mt-6 w-1/2 text-center bg-yellow-500 warning-animation"
+        >
+          {{ warning }}
         </div>
       </div>
     </div>
@@ -48,7 +100,7 @@
     <div
       v-for="(transactions, date) in transactionsByDate"
       :key="date"
-      class="border-x-4 rounded-lg mt-8"
+      class="border-x-4 rounded-lg mt-6"
     >
       <div class="row">
         <div class="bg-gray-600 rounded-t-lg">
@@ -107,7 +159,7 @@
     <div
       v-for="(income, date) in incomeByDate"
       :key="date"
-      class="border-x-4 rounded-lg mt-8"
+      class="border-x-4 rounded-lg mt-6"
     >
       <div class="row">
         <div class="bg-gray-400 rounded-t-lg">
@@ -244,14 +296,20 @@ import { ref, onMounted, watch, computed } from "vue";
 import { db } from "@/configs/firebase";
 import {
   collection,
-  doc,
   getDocs,
+  doc,
   updateDoc,
   deleteDoc,
-} from "firebase/firestore";
+} from "firebase/firestore"; // Thêm các import bị thiếu
+import { useUser } from "@/composables/useUser"; // Đảm bảo đúng đường dẫn
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 export default {
   setup() {
+    const expense_desire = ref("");
+    const onSubmitExpense = ref("");
+    const isEditingExpense = ref(true);
+
     const isEditModalVisible = ref(false);
     const isDeleteModalVisible = ref(false);
     const deleteItemId = ref(null);
@@ -265,25 +323,61 @@ export default {
     const totalExpenses = ref(0);
     const totalIncome = ref(0);
 
+    const warning = ref("");
+
+    // Lấy user từ useUser
+    const { user } = useUser(); // Sử dụng useUser để lấy user đang đăng nhập
+
+    onAuthStateChanged(getAuth(), (user) => {
+      if (user) {
+        // Nếu người dùng đã đăng nhập, gán thông tin người dùng
+        console.log("Người dùng đăng nhập:", user.uid);
+        user.value = user; // Cập nhật user.value nếu sử dụng Vue Reactive
+        fetchData(); // Gọi fetchData sau khi người dùng đã đăng nhập
+      } else {
+        console.log("Người dùng chưa đăng nhập");
+        user.value = null; // Reset user.value nếu người dùng chưa đăng nhập
+      }
+    });
+
     // Fetch data from Firestore
     const fetchData = async () => {
-      const transactionCollection = collection(db, "transactions");
-      const incomeCollection = collection(db, "income");
+      if (!user.value || !user.value.uid) {
+        console.error("Người dùng chưa đăng nhập!");
+        return;
+      }
+      const userId = user.value.uid;
 
-      const transactionSnapshot = await getDocs(transactionCollection);
-      const incomeSnapshot = await getDocs(incomeCollection);
+      try {
+        const transactionSnapshot = await getDocs(
+          collection(db, `users/${userId}/transactions`)
+        );
+        const incomeSnapshot = await getDocs(
+          collection(db, `users/${userId}/income`)
+        );
 
-      transactions.value = transactionSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+        transactions.value = transactionSnapshot.docs.map((doc) => {
+          const data = doc.data();
+          const time =
+            data.time && data.time.toDate
+              ? data.time.toDate().toISOString()
+              : data.time;
+          return { id: doc.id, ...data, time };
+        });
 
-      income.value = incomeSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+        income.value = incomeSnapshot.docs.map((doc) => {
+          const data = doc.data();
+          const time =
+            data.time && data.time.toDate
+              ? data.time.toDate().toISOString()
+              : data.time;
+          return { id: doc.id, ...data, time };
+        });
 
-      calculateTotals();
+        calculateTotals(); // Đảm bảo tính toán lại tổng sau khi lấy dữ liệu
+      } catch (error) {
+        console.error("Lỗi khi lấy dữ liệu:", error);
+      }
     };
 
     const calculateTotals = () => {
@@ -309,8 +403,96 @@ export default {
       );
 
       funds.value = totalIncome.value - totalExpenses.value;
+      checkExpenseWarning(); // Kiểm tra cảnh báo khi tính toán xong
     };
 
+    const checkExpenseWarning = () => {
+      if (
+        onSubmitExpense.value &&
+        totalExpenses.value >= parseFloat(onSubmitExpense.value)
+      ) {
+        warning.value =
+          "Cảnh báo !!!: Bạn đã chi tiêu vượt mức quy định cho tháng này !!!";
+      } else {
+        warning.value = "";
+      }
+    };
+
+    const submitExpenseDeriseCompare = () => {
+      const monthKey = selectedMonth.value;
+
+      if (funds.value === 0) {
+        warning.value =
+          "Cảnh báo: Số dư phải lớn hơn 0 để nhập mức chi tiêu quy định!";
+      } else if (expense_desire.value) {
+        onSubmitExpense.value = expense_desire.value;
+        isEditingExpense.value = false;
+        warning.value = "";
+
+        // Lưu mức chi tiêu theo tháng vào LocalStorage
+        const expenseData =
+          JSON.parse(localStorage.getItem("expense_desire_data")) || {};
+        expenseData[monthKey] = expense_desire.value;
+        localStorage.setItem(
+          "expense_desire_data",
+          JSON.stringify(expenseData)
+        );
+
+        checkExpenseWarning(); // Kiểm tra cảnh báo
+      }
+    };
+
+    const editExpense = () => {
+      isEditingExpense.value = true;
+    };
+
+    const deleteExpense = () => {
+      const monthKey = selectedMonth.value;
+      let expenseData =
+        JSON.parse(localStorage.getItem("expense_desire_data")) || {};
+
+      if (expenseData[monthKey]) {
+        delete expenseData[monthKey]; // Xóa dữ liệu của tháng hiện tại
+        localStorage.setItem(
+          "expense_desire_data",
+          JSON.stringify(expenseData)
+        );
+
+        expense_desire.value = "";
+        onSubmitExpense.value = "";
+        isEditingExpense.value = true;
+        warning.value = "";
+      }
+
+      fetchExpense();
+    };
+
+    const fetchExpense = () => {
+      const monthKey = selectedMonth.value;
+      const expenseData =
+        JSON.parse(localStorage.getItem("expense_desire_data")) || {};
+
+      if (expenseData[monthKey]) {
+        onSubmitExpense.value = expenseData[monthKey];
+        isEditingExpense.value = false;
+      } else {
+        onSubmitExpense.value = "";
+        isEditingExpense.value = true;
+      }
+    };
+
+    onMounted(() => {
+      fetchData();
+      fetchExpense();
+    });
+
+    watch(selectedMonth, () => {
+      fetchData(); // Fetch lại dữ liệu khi tháng thay đổi
+      fetchExpense(); // Lấy dữ liệu mức chi tiêu quy định khi tháng thay đổi
+      checkExpenseWarning(); // Kiểm tra cảnh báo sau khi dữ liệu thay đổi
+    });
+
+    // Đảm bảo các hàm được sử dụng đúng
     const onEdit = (item, type) => {
       currentItem.value = item;
       editForm.value = { ...item };
@@ -325,10 +507,26 @@ export default {
     };
 
     const saveEdit = async () => {
-      const docRef = doc(db, deleteItemType.value, currentItem.value.id);
-      await updateDoc(docRef, editForm.value);
-      fetchData();
-      isEditModalVisible.value = false;
+      if (!user.value || !user.value.uid) {
+        console.error("Người dùng chưa đăng nhập!");
+        return;
+      }
+
+      const userId = user.value.uid;
+      const collectionPath = `users/${userId}/${deleteItemType.value}`; // Tạo đường dẫn đầy đủ
+
+      try {
+        const docRef = doc(db, collectionPath, currentItem.value.id);
+        await updateDoc(docRef, {
+          category: editForm.value.category,
+          total: parseFloat(editForm.value.total), // Chuyển đổi số
+          time: new Date(editForm.value.time), // Đảm bảo đúng kiểu thời gian
+        });
+        await fetchData(); // Cập nhật dữ liệu
+        isEditModalVisible.value = false; // Đóng modal chỉnh sửa
+      } catch (error) {
+        console.error("Lỗi khi cập nhật dữ liệu:", error);
+      }
     };
 
     const cancelEdit = () => {
@@ -336,10 +534,22 @@ export default {
     };
 
     const onDeleteConfirm = async (id, type) => {
-      const docRef = doc(db, type, id);
-      await deleteDoc(docRef);
-      fetchData();
-      isDeleteModalVisible.value = false;
+      if (!user.value || !user.value.uid) {
+        console.error("Người dùng chưa đăng nhập!");
+        return;
+      }
+
+      const userId = user.value.uid;
+      const collectionPath = `users/${userId}/${type}`; // Tạo đường dẫn đầy đủ
+
+      try {
+        const docRef = doc(db, collectionPath, id);
+        await deleteDoc(docRef); // Xóa tài liệu từ Firestore
+        await fetchData(); // Cập nhật dữ liệu
+        isDeleteModalVisible.value = false; // Đóng modal xóa
+      } catch (error) {
+        console.error("Lỗi khi xóa dữ liệu:", error);
+      }
     };
 
     const onDeleteCancel = () => {
@@ -353,10 +563,6 @@ export default {
       }).format(value);
     };
 
-    onMounted(fetchData);
-
-    watch(selectedMonth, fetchData);
-
     const transactionsByDate = computed(() => {
       const filteredTransactions = transactions.value.filter((transaction) => {
         const transactionMonth = new Date(transaction.time)
@@ -366,7 +572,7 @@ export default {
       });
 
       return filteredTransactions.reduce((acc, transaction) => {
-        const date = new Date(transaction.time).toISOString().slice(0, 10);
+        const date = new Date(transaction.time).toISOString().slice(0, 10); // Đảm bảo định dạng ngày đúng
         if (!acc[date]) {
           acc[date] = [];
         }
@@ -382,7 +588,7 @@ export default {
       });
 
       return filteredIncome.reduce((acc, incomeItem) => {
-        const date = new Date(incomeItem.time).toISOString().slice(0, 10);
+        const date = new Date(incomeItem.time).toISOString().slice(0, 10); // Đảm bảo định dạng ngày đúng
         if (!acc[date]) {
           acc[date] = [];
         }
@@ -413,7 +619,81 @@ export default {
       formatCurrency,
       transactionsByDate,
       incomeByDate,
+      expense_desire,
+      onSubmitExpense,
+      isEditingExpense,
+      submitExpenseDeriseCompare,
+      editExpense,
+      warning,
+      deleteExpense,
     };
   },
 };
 </script>
+
+
+<style scoped>
+.width-response{
+  width: 220px;
+}
+@media screen and (min-width: 430px) {
+  .input-money {
+    margin: 0;
+  }
+
+}
+@media screen and (min-width: 412px) {
+  .input-money {
+    margin: 0;
+    width: 90%;
+  }
+}
+@media screen and (min-width: 375px) {
+  .input-money {
+    margin: 0;
+    width: 90%;
+  }
+}
+@media screen and (min-width: 360px) {
+  .input-money {
+    margin: 0;
+    width: 90%;
+  }
+  .edit-front{
+    width: 60px;
+    padding: 2px;
+    font-size: 12px;
+  }
+}
+@media screen and (min-width: 1024px) {
+  .edit-front{
+    font-size: 16px;
+    width: 100px;
+    padding: 0;
+  }
+}
+
+.warning-animation {
+  animation: shake 1s ease-in-out infinite;
+}
+
+@keyframes shake {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateY(10px);
+  }
+  50% {
+    transform: translateX(10px);
+    transform: translateY(-10px);
+  }
+  75% {
+    transform: translateX(-10px);
+  }
+  100% {
+    transform: translateX(0);
+    transform: translateY(0);
+  }
+}
+</style>

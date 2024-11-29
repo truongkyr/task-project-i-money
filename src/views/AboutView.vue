@@ -1,7 +1,7 @@
 <template>
   <div class="row">
     <div class="container w-full">
-      <div class="font-semibold text-xl text-dark bg-white p-5">
+      <div class="font-semibold text-xl text-dark p-5">
         <span class="text-center">
           Quản lý chi tiêu là tập hợp các hoạt động liên quan đến việc quản lý
           tiền bạc, tối ưu thu chi đồng thời thiết lập kế hoạch tiết kiệm trong
@@ -24,11 +24,11 @@
           dài hạn như có một cửa hàng nhỏ, lập gia đình, nghỉ hưu,…
         </span>
       </div>
-      <div class="font-semibold text-xl bg-white border-x-4 text-center">
+      <div class="font-semibold text-xl py-4 text-center">
         <button type="submit" class="text-primary p-5">Hỗ trợ</button>
       </div>
     </div>
-    <div class="row mt-8">
+    <!-- <div class="row mt-8">
       <div class="flex items-center flex-none w-10 text-right leading-10 mr-4">
         <router-link class="flex" :to="{ name: 'Profile', params: {} }">
           <span class="flex-none w-10 mr-2">
@@ -39,6 +39,6 @@
           >
         </router-link>
       </div>
-    </div>
+    </div> -->
   </div>
 </template>

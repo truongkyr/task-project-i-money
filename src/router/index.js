@@ -97,36 +97,58 @@ const routes = [
     beforeEnter: requiredAuth,
   },
   {
-    path: "/report-quarter",
-    name: "ReportQuarter",
-    meta:{
-      text: "Báo cáo số dư theo quý",
-      leading: false,
-      isShowFooter: false,
-    },
-    component: () => import("@/views/reportQuarter.vue"),
-    beforeEnter: requiredAuth,
-  },
-  {
-    path: "/report-year",
-    name: "ReportYear",
-    meta:{
-      text: "Báo cáo số dư theo năm",
-      leading: false,
-      isShowFooter: false,
-    },
-    component: () => import("@/views/reportYear.vue"),
-    beforeEnter: requiredAuth,
-  },
-  {
     path: "/about",
     name: "About",
     meta:{
       text: "Về chúng tôi",
       leading: false,
-      isShowFooter: false,
+      isShowFooter: true,
     },
     component: () => import("@/views/aboutView.vue"),
+    beforeEnter: requiredAuth,
+  },
+  {
+    path: "/report-detail",
+    name: "ReportDetail",
+    meta:{  
+      text: "Báo cáo chi tiết",
+      leading: false,
+      isShowFooter: true,
+    },
+    component: () => import("@/views/reportDetail.vue"),
+    beforeEnter: requiredAuth,
+  },
+  {
+    path: "/private",
+    name: "Private",
+    meta:{  
+      text: "Quyền riêng tư",
+      leading: false,
+      isShowFooter: true,
+    },
+    component: () => import("@/views/privateView.vue"),
+    beforeEnter: requiredAuth,
+  },
+  {
+    path: "/wallet",
+    name: "Wallet",
+    meta:{  
+      text: "Ví của bạn",
+      leading: false,
+      isShowFooter: true,
+    },
+    component: () => import("@/views/walletView.vue"),
+    beforeEnter: requiredAuth,
+  },
+  {
+    path: "/tools",
+    name: "Tools",
+    meta:{  
+      text: "Công cụ",
+      leading: false,
+      isShowFooter: true,
+    },
+    component: () => import("@/views/toolsView.vue"),
     beforeEnter: requiredAuth,
   },
 ];

@@ -281,6 +281,8 @@ export default {
     const formattedTotal = ref("");
 
     const category = ref("Chọn");
+
+      
     const note = ref("");
     const time = ref(new Date().toISOString().substr(0, 10));
     const location = ref("");

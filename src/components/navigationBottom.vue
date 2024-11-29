@@ -1,7 +1,7 @@
 <template>
-  <div class="content-wrapper pb-16">
+  <div class="content-wrapper pb-18">
   </div>
-  <footer id="footer" class="fixed bottom-0 w-full bg-gray-100 pt-4 p-b-safe-4">
+  <footer id="footer" class="fixed bottom-0 w-full bg-gray-100 pt-4 p-b-safe-4 2xl:w-1/2 mx-auto">
     <div class="container mx-auto px-8 h-full">
       <ul class="flex justify-between h-full items-center">
         <li v-for="navItem in navItems" :key="navItem.name">

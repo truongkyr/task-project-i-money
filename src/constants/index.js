@@ -2,10 +2,10 @@ export const PUBLIC_LAYOUT = "default";
 
 export const PROFILE_OPTIONS = [
     {
-      name: "My wallet",
+      name: "Ví",
       icon: "fa-solid fa-wallet text-2xl",
       route: {
-        name: "home",
+        name: "Wallet",
         params: {},
       },
     },
@@ -13,7 +13,7 @@ export const PROFILE_OPTIONS = [
       name: "Công cụ",
       icon: "fa-solid fa-screwdriver-wrench",
       route: {
-        name: "home",
+        name: "Tools",
         params: {},
       },
     },
@@ -21,7 +21,7 @@ export const PROFILE_OPTIONS = [
       name: "Quyền riêng tư",
       icon: "fa-solid fa-lock",
       route: {
-        name: "home",
+        name: "Private",
         params: {},
       },
     },

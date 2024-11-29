@@ -53,8 +53,7 @@
               type="text"
               v-model="savingGoalInput"
               class="border border-gray-400 p-2 rounded-lg w-1/2 mx-2"
-              @input="onGoalInput"
-              @blur="onGoalBlur"
+              @input="formatGoalInput"
               placeholder="Nhập mục tiêu tiết kiệm"
             />
             VNĐ
@@ -88,9 +87,10 @@
         />
         <input
           v-model="newGoal.savings"
-          type="number"
+          type="text"
           class="border border-gray-400 p-2 rounded-lg w-1/4"
           placeholder="Đã tiết kiệm"
+          @input="formatInputNumber($event, 'savings')"
         />
         <input
           v-model="newGoal.progress"
@@ -150,6 +150,7 @@
         </tbody>
       </table>
     </div>
+
     <div class="my-6 bg-white shadow-md p-6 rounded-lg">
       <h2 class="text-xl font-semibold mb-4">Dự báo</h2>
       <div class="my-2">
@@ -169,7 +170,7 @@
       <!-- Kết quả dự báo -->
       <p class="text-gray-700 mt-4">
         Nếu tiết kiệm
-        <strong>{{ formatCurrency(savingRate) }} VNĐ/tháng</strong>, bạn sẽ hoàn
+        <strong>{{ formatCurrency(savingRate) }} /tháng</strong>, bạn sẽ hoàn
         thành mục tiêu trong:
         <strong>{{ estimatedCompletion }}</strong>
       </p>
@@ -178,9 +179,10 @@
 </template>
 
 <script>
-import { ref, onMounted, computed, watch } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { db } from "@/configs/firebase";
 import { collection, getDocs } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 export default {
   setup() {
@@ -200,45 +202,35 @@ export default {
       deadline: "",
     });
 
+    // Định nghĩa hàm formatNumber để xử lý định dạng số tiền
     const formatNumber = (value) => {
       if (!value) return "";
       return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
     };
 
+    // Cập nhật tỷ lệ tiết kiệm mỗi tháng
     const updateSavingRate = (event) => {
-      const rawValue = event.target.value.replace(/\./g, ""); // Xóa dấu chấm
-      savingRate.value = parseFloat(rawValue) || 0; // Cập nhật giá trị thực
-      formattedSavingRate.value = formatNumber(rawValue); // Cập nhật giá trị hiển thị
+      const rawValue = event.target.value.replace(/\./g, ""); // Xóa dấu chấm nếu có
+      savingRate.value = parseFloat(rawValue) || 0; // Cập nhật giá trị thực của tỷ lệ tiết kiệm
+      formattedSavingRate.value = formatNumber(rawValue); // Định dạng lại giá trị hiển thị
+
+      
+      const rawGoalValue = event.target.value.replace(/\./g, "")
+      savingGoalInput.value = formatNumber(rawGoalValue);
     };
 
-    // Lưu savingGoalInput và savingRate vào localStorage khi thay đổi
-    watch(savingGoalInput, (newValue) => {
-      localStorage.setItem("savingGoalInput", newValue);
-    });
-
-    watch(savingRate, (newValue) => {
-      localStorage.setItem("savingRate", newValue);
-    });
-
-    const loadSavingGoalsFromLocalStorage = () => {
-      const savedGoals = localStorage.getItem("savingGoals");
-      if (savedGoals) {
-        savingGoals.value = JSON.parse(savedGoals);
-      }
-    };
-
-    const saveSavingGoalsToLocalStorage = () => {
-      localStorage.setItem("savingGoals", JSON.stringify(savingGoals.value));
-    };
-
-    const removeSavingGoal = (index) => {
-      savingGoals.value.splice(index, 1);
-      saveSavingGoalsToLocalStorage();
-    };
-
+    // Lấy dữ liệu từ Firestore
     const fetchData = async () => {
-      const transactionCollection = collection(db, "transactions");
-      const incomeCollection = collection(db, "income");
+      const auth = getAuth();
+      const userId = auth.currentUser ? auth.currentUser.uid : null;
+
+      if (!userId) {
+        console.error("Người dùng chưa đăng nhập.");
+        return;
+      }
+
+      const transactionCollection = collection(db, `users/${userId}/transactions`);
+      const incomeCollection = collection(db, `users/${userId}/income`);
 
       const transactionSnapshot = await getDocs(transactionCollection);
       const incomeSnapshot = await getDocs(incomeCollection);
@@ -306,9 +298,7 @@ export default {
     const savingProgress = computed(() => {
       const goal = parseFloat(savingGoalInput.value.replace(/\./g, ""));
       if (!goal) return 0;
-      return selectedYear.value === "tất cả"
-        ? ((savings.value / goal) * 100).toFixed(2)
-        : ((savings.value / goal) * 100).toFixed(2);
+      return ((savings.value / goal) * 100).toFixed(2);
     });
 
     const remainingGoal = computed(() => {
@@ -338,38 +328,41 @@ export default {
       saveSavingGoalsToLocalStorage();
     };
 
+    const saveSavingGoalsToLocalStorage = () => {
+      localStorage.setItem("savingGoals", JSON.stringify(savingGoals.value));
+    };
+
     onMounted(() => {
-      loadSavingGoalsFromLocalStorage();
       fetchData();
     });
 
     const estimatedCompletion = computed(() => {
-      const remainingAmount = remainingGoal.value; // Lấy số tiền còn lại
-      const monthlyRate = savingRate.value; // Lấy tỷ lệ tiết kiệm mỗi tháng
+      const remainingAmount = remainingGoal.value;
+      const monthlyRate = savingRate.value;
 
-      // Kiểm tra nếu đã hoàn thành
       if (remainingAmount <= 0) {
         return "Đã hoàn thành mục tiêu!";
       }
 
-      // Kiểm tra nếu tỷ lệ tiết kiệm bằng 0
       if (monthlyRate <= 0) {
         return "Vui lòng nhập tỷ lệ tiết kiệm mỗi tháng.";
       }
 
-      // Tính số tháng cần để hoàn thành
       const monthsNeeded = Math.ceil(remainingAmount / monthlyRate);
       const completionDate = new Date();
       completionDate.setMonth(completionDate.getMonth() + monthsNeeded);
 
       return `${monthsNeeded} tháng (dự kiến hoàn thành vào ${completionDate.toLocaleDateString(
         "vi-VN",
-        {
-          month: "long",
-          year: "numeric",
-        }
+        { month: "long", year: "numeric" }
       )})`;
     });
+
+    // Hàm định dạng số nhập vào
+    const formatGoalInput = (event) => {
+      const rawValue = event.target.value.replace(/\./g, ""); // Loại bỏ dấu chấm
+      savingGoalInput.value = rawValue ? formatNumber(rawValue) : ""; // Định dạng số nhập vào
+    };
 
     return {
       selectedYear,
@@ -385,9 +378,10 @@ export default {
       estimatedCompletion,
       newGoal,
       addSavingGoal,
-      removeSavingGoal,
-      updateSavingRate,
       savingRate,
+      formattedSavingRate,
+      updateSavingRate,
+      formatGoalInput,
     };
   },
 };
