@@ -7,10 +7,13 @@
         v-model="selectedYear"
         class="border border-gray-400 p-2 ml-2 rounded-lg"
       >
+        <!-- Hiển thị Tất cả hoặc các hợp lệ, tránh NaN -->
+        <option value="" disabled>Chọn</option>
         <option v-for="year in availableYears" :key="year" :value="year">
           {{ year }}
         </option>
       </select>
+
       <router-link
         :to="{ name: 'ReportDetail', params: {} }"
         class="p-3 rounded-xl border border-gray-300 hover:bg-primary hover:text-white hover:border-primary"
@@ -18,7 +21,6 @@
         Xem chi tiết
       </router-link>
     </div>
-
     <!-- Biểu đồ -->
     <div class="row">
       <div class="bg-white py-4">
@@ -54,6 +56,7 @@
   </div>
 </template>
 
+
 <script>
 import { ref, computed, watch, onMounted } from "vue";
 import { Bar } from "vue-chartjs";
@@ -66,7 +69,12 @@ import {
   CategoryScale,
   LinearScale,
 } from "chart.js";
-import { getFirestore, collection, getDocs } from "firebase/firestore";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  Timestamp,
+} from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 // Đăng ký các thành phần của chart.js
@@ -120,8 +128,6 @@ export default {
           return;
         }
 
-        //const [year, month] = selectedYear.value.split("-").map(Number);
-
         const transactionsSnapshot = await getDocs(
           collection(getFirestore(), `users/${userId}/transactions`)
         );
@@ -139,9 +145,11 @@ export default {
           ...doc.data(),
         }));
 
+        // Cập nhật các năm có dữ liệu
+        setAvailableYears();
+
         // Tính toán tổng thu nhập và chi tiêu cho từng tháng
         calculateTotalsByMonth();
-        setAvailableYears(); // Cập nhật các năm có dữ liệu
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -150,9 +158,12 @@ export default {
     };
 
     // Thiết lập danh sách các năm có dữ liệu từ Firestore
+    // Hàm để thiết lập các năm có dữ liệu hợp lệ
+    // Thiết lập danh sách các năm có dữ liệu từ Firestore
     const setAvailableYears = () => {
       const years = new Set();
 
+      // Lấy các năm từ các giao dịch và thu nhập
       transactions.value.forEach((t) => {
         const year = new Date(t.time).getFullYear().toString();
         years.add(year);
@@ -163,7 +174,17 @@ export default {
         years.add(year);
       });
 
-      availableYears.value = Array.from(years).sort().reverse(); // Sắp xếp theo thứ tự giảm dần
+      // Lọc các năm hợp lệ và sắp xếp theo thứ tự giảm dần
+      availableYears.value = Array.from(years)
+        .filter((year) => !isNaN(year)) // Loại bỏ NaN
+        .sort()
+        .reverse(); // Sắp xếp năm theo thứ tự giảm dần
+
+      // Kiểm tra và đặt selectedYear thành giá trị hợp lệ nếu có
+      if (!availableYears.value.includes(selectedYear.value)) {
+        selectedYear.value =
+          availableYears.value.length > 0 ? availableYears.value[0] : "";
+      }
     };
 
     // Tính tổng thu nhập và chi tiêu theo từng tháng của năm đã chọn
@@ -175,9 +196,22 @@ export default {
         // Lọc các giao dịch chi tiêu cho từng tháng
         const filteredTransactions = transactions.value.filter(
           (transaction) => {
-            const transactionDate = new Date(transaction.time);
-            const transactionMonth = transactionDate.toISOString().slice(5, 7);
-            const transactionYear = transactionDate.getFullYear().toString();
+            let transactionTime = transaction.time;
+
+            // Kiểm tra nếu time tồn tại và là một đối tượng Timestamp hợp lệ
+            if (transactionTime instanceof Timestamp) {
+              transactionTime = transactionTime.toDate(); // Chuyển từ Timestamp thành Date
+            } else if (typeof transactionTime === "string") {
+              transactionTime = new Date(transactionTime); // Nếu là chuỗi ngày hợp lệ
+            } else if (typeof transactionTime === "number") {
+              transactionTime = new Date(transactionTime); // Nếu là Unix timestamp
+            } else {
+              console.error("Trường `time` không hợp lệ:", transactionTime);
+              return false; // Loại bỏ mục không hợp lệ
+            }
+
+            const transactionMonth = transactionTime.toISOString().slice(5, 7);
+            const transactionYear = transactionTime.getFullYear().toString();
             return (
               transactionMonth === month &&
               transactionYear === selectedYear.value
@@ -187,20 +221,33 @@ export default {
 
         // Lọc các thu nhập cho từng tháng
         const filteredIncome = income.value.filter((incomeItem) => {
-          const incomeDate = new Date(incomeItem.time);
-          const incomeMonth = incomeDate.toISOString().slice(5, 7);
-          const incomeYear = incomeDate.getFullYear().toString();
+          let incomeTime = incomeItem.time;
+
+          // Kiểm tra nếu time tồn tại và là một đối tượng Timestamp hợp lệ
+          if (incomeTime instanceof Timestamp) {
+            incomeTime = incomeTime.toDate(); // Chuyển từ Timestamp thành Date
+          } else if (typeof incomeTime === "string") {
+            incomeTime = new Date(incomeTime); // Nếu là chuỗi ngày hợp lệ
+          } else if (typeof incomeTime === "number") {
+            incomeTime = new Date(incomeTime); // Nếu là Unix timestamp
+          } else {
+            console.error("Trường `time` không hợp lệ:", incomeTime);
+            return false; // Loại bỏ mục không hợp lệ
+          }
+
+          const incomeMonth = incomeTime.toISOString().slice(5, 7);
+          const incomeYear = incomeTime.getFullYear().toString();
           return incomeMonth === month && incomeYear === selectedYear.value;
         });
 
         // Tính tổng chi tiêu và thu nhập cho từng tháng
         expenses[month] = filteredTransactions.reduce(
-          (sum, transaction) => sum + parseFloat(transaction.total),
+          (sum, transaction) => sum + (parseFloat(transaction.total) || 0), // Dùng || 0 để thay thế NaN
           0
         );
 
         incomes[month] = filteredIncome.reduce(
-          (sum, incomeItem) => sum + parseFloat(incomeItem.total),
+          (sum, incomeItem) => sum + (parseFloat(incomeItem.total) || 0), // Dùng || 0 để thay thế NaN
           0
         );
       });

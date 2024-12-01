@@ -53,6 +53,7 @@
                     id="expense_desire"
                     v-model="expense_desire"
                     placeholder="Nhập số tiền ..."
+                    @input="formatExpenseInput"
                   />
                   <button
                     class="font-semibold text-red bg-white px-3 rounded-xl mx-1"
@@ -230,14 +231,18 @@
               class="form-input mt-1 block w-full"
             />
           </label>
+          <!-- Modal Chỉnh sửa -->
           <label class="block mb-2">
             <span class="text-gray-700">Tổng:</span>
             <input
               v-model="editForm.total"
-              type="number"
+              type="text"
               class="form-input mt-1 block w-full"
+              @input="formatInputNumber($event)"
+              @blur="saveFormattedValue"
             />
           </label>
+
           <label class="block mb-2">
             <span class="text-gray-700">Thời gian:</span>
             <input
@@ -304,6 +309,8 @@ import {
 import { useUser } from "@/composables/useUser"; // Đảm bảo đúng đường dẫn
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 
+import { EventBus } from "@/composables/evenBus.js";
+
 export default {
   setup() {
     const expense_desire = ref("");
@@ -339,6 +346,32 @@ export default {
         user.value = null; // Reset user.value nếu người dùng chưa đăng nhập
       }
     });
+
+    const formatExpenseInput = (event) => {
+      let rawValue = event.target.value.replace(/\./g, ""); // Loại bỏ dấu chấm khi nhập
+      expense_desire.value = formatNumber(rawValue); // Định dạng lại với dấu chấm
+    };
+
+    const formatInputNumber = (event) => {
+      let rawValue = event.target.value.replace(/\./g, ""); // Loại bỏ dấu chấm khi người dùng nhập
+      editForm.value.total = formatNumber(rawValue); // Định dạng lại giá trị sau khi nhập
+    };
+    const saveFormattedValue = () => {
+      console.log("Trước khi xử lý:", editForm.value.total);
+      if (!editForm.value.total) {
+        editForm.value.total = ""; // Đảm bảo không bị undefined hoặc null
+        return;
+      }
+      const rawValue = String(editForm.value.total).replace(/\./g, ""); // Chuyển đổi sang chuỗi và loại bỏ dấu chấm
+      editForm.value.total = parseFloat(rawValue) || 0; // Chuyển về số thực hoặc đặt mặc định là 0
+      console.log("Sau khi xử lý:", editForm.value.total);
+    };
+
+    // Hàm định dạng số với dấu phân cách chấm
+    const formatNumber = (value) => {
+      if (!value) return "";
+      return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); // Định dạng với dấu chấm phân cách
+    };
 
     // Fetch data from Firestore
     const fetchData = async () => {
@@ -425,7 +458,10 @@ export default {
         warning.value =
           "Cảnh báo: Số dư phải lớn hơn 0 để nhập mức chi tiêu quy định!";
       } else if (expense_desire.value) {
-        onSubmitExpense.value = expense_desire.value;
+        // Loại bỏ dấu phân cách và chuyển thành số thực
+        const rawValue = expense_desire.value.replace(/\./g, "");
+        onSubmitExpense.value = parseFloat(rawValue); // Lưu dưới dạng số thực
+
         isEditingExpense.value = false;
         warning.value = "";
 
@@ -522,8 +558,12 @@ export default {
           total: parseFloat(editForm.value.total), // Chuyển đổi số
           time: new Date(editForm.value.time), // Đảm bảo đúng kiểu thời gian
         });
-        await fetchData(); // Cập nhật dữ liệu
+
+        // Gọi lại fetchData trong PieChart để làm mới biểu đồ
+        await fetchData(); // Gọi lại hàm fetchData trong PieChart
+
         isEditModalVisible.value = false; // Đóng modal chỉnh sửa
+        EventBus.event = "data-updated";
       } catch (error) {
         console.error("Lỗi khi cập nhật dữ liệu:", error);
       }
@@ -626,6 +666,9 @@ export default {
       editExpense,
       warning,
       deleteExpense,
+      formatExpenseInput,
+      formatInputNumber,
+      saveFormattedValue,
     };
   },
 };
@@ -633,14 +676,13 @@ export default {
 
 
 <style scoped>
-.width-response{
+.width-response {
   width: 220px;
 }
 @media screen and (min-width: 430px) {
   .input-money {
     margin: 0;
   }
-
 }
 @media screen and (min-width: 412px) {
   .input-money {
@@ -659,14 +701,14 @@ export default {
     margin: 0;
     width: 90%;
   }
-  .edit-front{
+  .edit-front {
     width: 60px;
     padding: 2px;
     font-size: 12px;
   }
 }
 @media screen and (min-width: 1024px) {
-  .edit-front{
+  .edit-front {
     font-size: 16px;
     width: 100px;
     padding: 0;
