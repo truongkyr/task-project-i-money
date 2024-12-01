@@ -355,7 +355,7 @@ export default {
     const formatInputNumber = (event) => {
       let rawValue = event.target.value.replace(/\./g, ""); // Loại bỏ dấu chấm khi người dùng nhập
       editForm.value.total = formatNumber(rawValue); // Định dạng lại giá trị sau khi nhập
-    };
+    }
     const saveFormattedValue = () => {
       console.log("Trước khi xử lý:", editForm.value.total);
       if (!editForm.value.total) {

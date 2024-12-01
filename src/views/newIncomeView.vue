@@ -213,7 +213,7 @@ export default {
 
     const { uploadFile, url } = useStorage("income");
 
-    const total = ref(0);
+    const total = ref("");
     const formattedTotal = ref("");
 
     const category = ref("Chọn");

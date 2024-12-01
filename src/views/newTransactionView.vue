@@ -277,7 +277,7 @@ export default {
 
     const { uploadFile, url } = useStorage("transactions");
 
-    const total = ref(0);
+    const total = ref("");
     const formattedTotal = ref("");
 
     const category = ref("Chọn");
